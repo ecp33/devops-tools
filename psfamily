@@ -1,0 +1,349 @@
+#!/usr/local/perl5/bin/perl
+##############################################################################
+#                            PERL COMMENT BLOCK
+#E
+#E   Tool Name: psfamily
+#
+#
+#E
+#E Purpose: List selected *nix processes in parent/child order with indentation
+#H
+#H Usage: psfamily [-h|-H] [-l] [-p] [-c] [-m] [searchterm]
+#E
+#E     -h|-H       - optional, print Usage or extended help with -H, and exit
+#E
+#E     -l          - optional, prints long format listing
+#E
+#E     -p          - optional, do NOT print parents of matched processes.
+#E     -c          - optional, do NOT print children of matched processes.
+#E     -m          - optional, DO print myself (my 'psfamily' process).
+#E
+#E     searchterm  - optional, a Perl RE search term, default: your login name
+#E
+#E              The searchterm may be a login ID, a process ID number, or a
+#E              string portion of a *nix command. The default searchterm is
+#E              the user's login name.
+#E
+#E              By default, 'psfamily' will print all of the parents and
+#E              all of the children of all of the processes that match the
+#E              searchterm, but will not print the process of the 'psfamily'
+#E              command itself.
+#E
+#       Author:  Evan Prince (ecp33)
+#
+#E Sample outputs:
+#E
+#E   $ psfamily
+#E
+#E     PID  PPID     USER %CPU %MEM        TIME COMMAND
+#E
+#E       0     0     root  0.0  0.0        0:32 sched
+#E       1     0     root  0.0  0.0        3:32  /etc/init
+#E     263     1     root  0.1  0.0        6:06   /usr/sbin/inetd -s
+#E   18211   263     root  0.0  0.0        0:00    in.rlogind
+#E   18213 18211    xxx65  0.0  0.0        0:00     -ksh
+#E
+#E   $ psfamily -l
+#E
+#E     PID  PPID     USER %CPU %MEM        TIME  VSZ   SZ    STIME TT      COMMAND
+#E
+#E       0     0     root  0.0  0.0        0:32    0    0   Nov_01 ?       sched
+#E       1     0     root  0.0  0.0        3:33 1304  163   Nov_01 ?        /etc/init -
+#E     263     1     root  0.0  0.0        6:07 2696  337   Nov_01 ?         /usr/sbin/inetd -s
+#E   18211   263     root  0.0  0.0        0:00 1904  238 11:57:09 ?          in.rlogind
+#E   18213 18211    xxx65  0.0  0.0        0:01 1968  246 11:57:09 pts/60      -ksh
+#E
+#E   $ psfamily xterm
+#E
+#E    PID  PPID     USER %CPU %MEM        TIME COMMAND      (I've truncated right side)
+#E      0     0     root  0.0  0.0        0:32 sched
+#E      1     0     root  0.0  0.0        3:33  /etc/init -
+#E     12     1    xxx55  0.0  0.1        0:03   xterm -name ChIMP -title ChIMP -e chimp...
+#E     14    12    xxx55  0.0  0.0        0:00    /bin/ksh /vol/tools/bin/sun4/ch
+#E     17    14    xxx55  0.0  0.0        0:00     /bin/ksh /vol/tools/bin/sun4/c
+#E     18    17    xxx55  0.0  0.1        0:05      chimpuip_exec -script logon
+#E  11584    18    xxx55    -    -        0:01       <defunct>
+#E     58     1    xxx55  0.0  0.1        0:00   xterm -C -geometry 55x5-5+5 -j -l -lf /v
+#E    114    58    xxx55  0.0  0.0        0:00    ksh
+#E     60     1    xxx55  0.0  0.1        0:01   xterm -sb -title Local Window 2 -name Wi
+#E    131    60    xxx55  0.0  0.0        0:00    ksh
+#E     65     1    xxx55  0.0  0.1        0:01   xterm -name ChIMP -title ChIMP -e chimp
+#E    127    65    xxx55  0.0  0.0        0:00    /bin/ksh /vol/tools/bin/sun4/ch
+#E    139   127    xxx55  0.0  0.0        0:00     /bin/ksh /vol/tools/bin/sun4/c
+#E    142   139    xxx55  0.0  0.1        0:00      chimpuip_exec -script logon
+#E   ...
+#E
+#E   $ psfamily -p xterm
+#E
+#E    PID  PPID     USER %CPU %MEM        TIME COMMAND      (I've truncated right side)
+#E
+#E     12     1    xxx55  0.0  0.1        0:03 xterm -name ChIMP -title ChIMP -e chimp...
+#E     14    12    xxx55  0.0  0.0        0:00  /bin/ksh /vol/tools/bin/sun4/ch
+#E     17    14    xxx55  0.0  0.0        0:00   /bin/ksh /vol/tools/bin/sun4/c
+#E     18    17    xxx55  0.0  0.1        0:05    chimpuip_exec -script logon
+#E  11584    18    xxx55    -    -        0:01     <defunct>
+#E     58     1    xxx55  0.0  0.1        0:00 xterm -C -geometry 55x5-5+5 -j -l -lf /v
+#E    114    58    xxx55  0.0  0.0        0:00  ksh
+#E   ...
+#E
+#E   $ psfamily -c xterm
+#E
+#E    PID  PPID     USER %CPU %MEM        TIME COMMAND      (I've truncate right side)
+#E
+#E      0     0     root  0.0  0.0        0:32 sched
+#E      1     0     root  0.0  0.0        3:33  /etc/init -
+#E     12     1    xxx55  0.0  0.1        0:03   xterm -name ChIMP -title ChIMP -e chimp...
+#E     58     1    xxx55  0.0  0.1        0:00   xterm -C -geometry 55x5-5+5 -j -l -lf /v
+#E  20312     1    yyy56  0.0  0.1        0:01   xterm -sb -e chimp -script logon
+#E  20401 20312    yyy56  0.0  0.0        0:00    /bin/ksh /vol/tools/bin/sun4/ch
+#E  20405 20401    yyy56  0.0  0.0        0:00     /bin/ksh /vol/tools/bin/sun4/c
+#E  20406 20405    yyy56  0.0  0.1        0:01      chimpuip_exec -script logon
+#E  13133 20406    yyy56  0.0  0.1        0:00       xterm -ut -xrm xterm*tekSmall: true
+#E  20469     1    yyy56  0.0  0.1        0:00   xterm -C -geometry 55x5-5+5 -j -l -lf /v
+#E
+#E  $ psfamily -p xxx65
+#E
+#E    PID  PPID     USER %CPU %MEM        TIME COMMAND
+#E
+#E  18213 18211    xxx65  0.0  0.0        0:01 -ksh
+#E
+#E  $ psfamily  # Running on a Solaris zone
+#E
+#E    PID  PPID     USER %CPU %MEM        TIME COMMAND
+#E
+#E  19725 19725     root  0.0  0.0       00:00 zsched
+#E  19987 19725     root  0.0  0.0       00:04  /usr/lib/inet/inetd start
+#E  22837 19987     root  0.0  0.0       00:00   /usr/sbin/in.rlogind
+#E  22839 22837     ecp33 0.0  0.0       00:00    -ksh
+#E
+#
+##############################################################################
+#P
+#P Program Structure:
+#P
+##############################################################################
+##############################################################################
+#P  0.  Initialize
+##############################################################################
+# Determine path to this program and add it to Perl's include path.
+$MY_DIR = `dirname $0`; chomp $MY_DIR;
+$ENV{PATH} = "${MY_DIR}:$ENV{PATH}";
+
+($prog = $0) =~ s/^.*\///;
+#$USAGE=`grep "^#H" $0 | replace "^#[HE] ?" ""`;
+#$EUSAGE=`grep "^#[HE]" $0 | replace "^#[HE] ?" ""`;
+#$PUSAGE=`grep "^[ \t]*#[HEP]" $0 | replace "^[ \t]*#[HEP] ?" ""`;
+
+@FIELDS = (
+    "pid",
+    "ppid",
+    "user",
+    "pcpu",
+    "pmem",
+    "time",
+    "vsz",
+    "osz",
+    "stime",
+    "tty",
+    "args",
+);
+
+$searchterm = "";
+$mark = 1;
+$noparent = 0;
+$nochild = 0;
+$metoo = 0;
+$me = $$;
+$debug = 0;
+$long = 0;
+$first = 0;
+$basepid = 0;       # Assume base PID = 0 .
+
+##############################################################################
+#P  1.  Flags and arguments
+##############################################################################
+foreach (@ARGV) {
+    if (/^-h|^-u/) {
+        die("$USAGE");
+    } elsif (/^-H|-U/) {
+        die("$EUSAGE");
+    } elsif (/^-P/) {
+        die("$PUSAGE");
+    } elsif (/^-p/) {
+        $noparent = 1;
+    } elsif (/^-c/) {
+        $nochild = 1;
+    } elsif (/^-m/) {
+        $metoo = 1;
+    } elsif (/^-l/) {
+        $long = 1;
+    } elsif (/^-debug/) {
+        $debug = 1;
+    } else {
+        $searchterm = $_;
+        $mark = 0;
+    }
+}
+if ($debug) { print STDERR "My process ID: $me\n\n" ; }
+if(! $searchterm) {     # default search term is users login name
+    $searchterm = getpwuid($<);
+    $mark = 0;
+}
+
+# Allow for running this script on a Solaris zone.
+# Determine whether we are on a zone, or a global zone (or non-zone).
+$X=`/bin/zonename`;
+if (("$X" eq "") or ($X =~ /^global/)) {
+    $I_Am_A_Zone = 0;   # No, I am not a zone.
+} else {
+    $I_Am_A_Zone = 1;   # Yes, I am a zone.
+}
+
+##############################################################################
+#P  2.  Read and Parse the Full Processor Status
+##############################################################################
+    # Read output from ps command and store into array, e.g.
+    #----+----1----+----2----+----3----+----4----+----5----+----6----+----7----+----8
+    #  PID  PPID     USER %CPU %MEM        TIME  VSZ   SZ    STIME TT      COMMAND
+    #    0     0     root  0.0  0.0        0:25    0    0   Nov_08 ?       sched
+    #    1     0     root  0.0  0.0        5:21 1304  163   Nov_08 ?       /etc/init -
+$ps_cmd = "/bin/ps -eo " . join( ",", @FIELDS);
+@PS = `$ps_cmd`;
+$LONG_HEADER = shift @PS;
+$SHORT_HEADER = substr($LONG_HEADER,0,42) . substr($LONG_HEADER,69);
+
+    # parse array data into hashes
+foreach (@PS) {
+    chomp;
+    s/^\s+//;
+    # trick... must supply limit or else all args are truncated
+    @ONE = split /\s+/, $_, 1+$#FIELDS;
+
+    ($pid, $ppid, $user, $pcpu, $pmem, $time,
+        $vsz, $osz, $stime, $tty, $args) = @ONE;
+
+    $basepid = $pid if (($args =~ /^zsched/) and $I_Am_A_Zone);
+    $PPID{$pid} = $ppid;
+    $USER{$pid} = $user;
+    $CMD{$pid}  = $args;
+    $DATA{$pid}  = [@ONE];
+
+    $CHILD{$ppid} .= "$pid ";   # this completes the two way link parent to child
+    if ($debug) { print STDERR "PS line: USER='$user' PID='$pid' PPID='$ppid' CMD='$args'\n"; }
+}
+close(PS);
+if ($debug) { print STDERR "\n" ; }
+
+##############################################################################
+#P  3.  Search and mark desired processes
+##############################################################################
+    # Invoke &Search subroutine recursively, to search for searchterm.
+    #   Mark (or flag) processes for later printing.
+&Search($basepid, $mark, 0);   # Parms: Process ID, mark, childmark
+
+##############################################################################
+#P  4.  Print the marked processes
+##############################################################################
+    # Invoke &Print subroutine recursively, to print processes that were
+    #   previously flagged.
+&Print($basepid, 0);           # Parms: Process ID, level
+
+##############################################################################
+#P  9.  Exit
+##############################################################################
+    # Exit program.
+exit(0);
+
+##############################################################################
+#P  A.  Subroutine &Search($parent, $mark, $childmark);
+##############################################################################
+sub Search {
+    local($parent, $mark, $childmark) = @_;
+
+    if ($debug) { print STDERR "Search A: mark=$mark, pid=$parent\n"; }
+
+        # If process not already marked, check for presence of searchterm.
+    unless ($mark) {
+        $mark = 1 if (defined($parent) and ($parent =~ /$searchterm/));
+        $mark = 1 if (defined($USER{$parent}) and ($USER{$parent} =~ /$searchterm/));
+        $mark = 1 if (defined($CMD{$parent}) and ($CMD{$parent} =~ /$searchterm/));
+    }
+
+        # If -m command-line parm was not set and this is "my" process,
+        #   unmark it and return.
+    if ((!$metoo) and ($parent == $me)) {
+        $mark = 0;
+        if ($debug) { print STDERR "Search A2 (my process): mark=$mark, pid=$parent\n"; }
+        return($mark);
+    }
+
+    if ($debug) { print STDERR "Search B: mark=$mark, pid=$parent\n"; }
+
+        # Next, loop through all of its children.
+    foreach $childID (split(/ /, $CHILD{$parent}||"")) {
+        next if ($childID == $parent);
+        if ($debug) { print STDERR "===>foreach ppid=$childID\n"; }
+        $childmark = 1 if &Search($childID, ($mark and (!$nochild)), 0);
+    }
+        # Propagate any child mark upward to parent.
+    $mark = 1 if ($childmark and (!$noparent) and ($metoo or ($parent != $me)));
+        # Set mark/flag for process in %MARK hash.
+    $MARK{$parent} = $mark;
+
+    if ($debug) { print STDERR "Search C: mark=$mark, pid=$parent\n"; }
+
+    return($mark);
+}
+
+
+
+##############################################################################
+#P  B.  Subroutine &Print($parent, $level);
+##############################################################################
+sub Print{
+    local($parent, $level) = @_;
+    my ($pid, $ppid, $user, $pcpu, $pmem, $time,
+        $vsz, $osz, $stime, $tty, $args);
+
+        # Print this entry, if marked.
+    if ($MARK{$parent}) {
+
+        ($pid, $ppid, $user, $pcpu, $pmem, $time,
+            $vsz, $osz, $stime, $tty, $args) = @{$DATA{$parent}};
+
+        #  PID  PPID     USER %CPU %MEM        TIME  VSZ   SZ    STIME TT      COMMAND
+        #    0     0     root  0.0  0.0        0:25    0    0   Nov_08 ?       sched
+        #    1     0     root  0.0  0.0        5:21 1304  163   Nov_08 ?       /etc/init -
+        #----+----1----+----2----+----3----+----4----+----5----+----6----+----7----+----8-
+        if($long) {
+            print "\n$LONG_HEADER\n" if ($first++ == 0);
+            printf "%5d %5d %8.8s %4.4s %4.4s %11.11s " .
+                   "%4.4s %4.4s %8.8s %-7.7s " .
+                   "%${level}s%s\n",
+                $pid, $ppid, $user, $pcpu, $pmem, $time,
+                $vsz, $osz, $stime, $tty,
+                "", $args;
+        } else {
+            print "\n$SHORT_HEADER\n" if ($first++ == 0);
+            #  PID  PPID     USER %CPU %MEM        TIME COMMAND
+            #14516 13494    adm65  0.0  0.0        0:00 ps -o pid,ppid,user,pcpu,pm
+            #13494 13492    adm65  0.0  0.0        0:01 -ksh
+            #----+----1----+----2----+----3----+----4----+----5----+----6----+----7
+            printf "%5d %5d %8.8s %4.4s %4.4s %11.11s " .
+                   "%${level}s%s\n",
+                $pid, $ppid, $user, $pcpu, $pmem, $time,
+                "", $args;
+        }
+        $level++;
+    }
+
+        # Next, loop through all of its children, sorted numerically by PID
+    foreach $childID (sort({$a<=>$b} split(/ /, $CHILD{$parent}||""))) {
+        next if ($childID == $parent);
+        &Print($childID, $level);
+    }
+}
+
+##############################################################################
+#P  X.  End of Program
+##############################################################################
